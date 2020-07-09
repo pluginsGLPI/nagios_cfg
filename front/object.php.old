@@ -1,0 +1,15 @@
+<?php
+
+include ('../../../inc/includes.php');
+
+if ($_SESSION["glpiactiveprofile"]["interface"] == "central") {
+   Html::header(PluginNagiosObject::getTypeName(2),$_SERVER['PHP_SELF'],"admin","PluginNagiosObject","");
+} else {
+   Html::helpHeader("NagiosObject", $_SERVER['PHP_SELF']);
+}
+//checkTypeRight('PluginExampleExample',"r");
+
+
+Search::show('PluginNagiosObject');
+Html::footer();
+?>

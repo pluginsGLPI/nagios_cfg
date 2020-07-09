@@ -1,0 +1,292 @@
+<?php
+
+if (!defined('GLPI_ROOT')) {
+  die("Sorry. You can't access directly to this file");
+}
+
+
+class PluginNagiosField extends CommonDropdown {
+
+   static $rightname='nagios';
+
+
+   static function getTable() {
+	return "glpi_plugin_nagios_fields";
+   }   
+
+   static function canView() {
+	return true;
+   }
+ 
+   static function canUpdate() {
+        return true;
+   }
+ 
+   static function canCreate() {
+        return true;
+   }
+
+   static function canPurge() {
+        return true;
+   }
+
+
+   static function getTypeName($nb=0) {
+	return "Nagios Fields";
+   }
+
+      
+   static function getFieldsByName($nagios_type,$names=array()) {
+	global $DB;
+	$f=new PluginNagiosField;	
+
+        return $f->find(" object_type='".$nagios_type."' and name in ('".implode($names,"','") ."') ");
+
+   }
+ 
+   static function showInput($id,$options=array()) {
+	
+	$field=new PluginNagiosField;	
+	if (!isset($options['linkID']))
+		$options['linkID']='';
+
+	$field->getFromDB($id);
+	$options['name']="field_$id";
+	echo "<tr ><td style=\"text-align:left\"><b>";
+
+        if ( $field->fields['display_name']) 
+	  echo $field->fields['display_name'];
+	else
+	  echo $field->fields['name'] ;
+
+	if (isset($options['herited_value']))
+		echo "<br><span style='color:green'><i>hérité: {$options['herited_value']}</i></span>";
+
+	array(''=>'','m'=>'+','i'=>'!');
+	echo "</b></td><td >Inheritance:&nbsp;<select name='flag_{$id}'>";
+	foreach(array(''=>'','m'=>'+','i'=>'!') as $idx => $val) {
+	   if (isset($options['flag']) && $options['flag']==$idx)
+		$selected="selected";
+	   else
+		$selected="";
+	   echo "<option $selected value='$idx'>$val</option>";
+	}
+	echo "</select>";
+
+	echo Html::hidden("field_id[]",array("value"=>$id)).
+	     Html::hidden("linkID[]",  array("value"=>$options['linkID'])).
+	         "</td>";
+
+	if (isset($options['vertical']))
+	   if ($options['vertical'])
+		echo "</tr><tr>";
+
+	echo "<td colspan=2>";
+	switch ($field->fields['field_type']) {
+	
+		case 'TEXT':
+			return $field->showInputText($options);
+			break;
+		case 'NUMBER':
+			return $field->showInputNumber($options);
+                        break;
+		case 'LIST':
+			return $field->showInputList($options);
+			break;
+		case 'LIST_ORDR':
+			return $field->showInputListOrdr($options);
+			break;
+		case 'CHOICE':
+			return $field->showInputChoice($options);
+			break;
+	}
+	echo "</td></tr>";
+   }
+
+   function showInputText($options) {
+                   
+	echo Html::input( $options['name'] , $options );
+   }
+
+   function showInputNumber($options) {
+                   
+	$options['size']=4;
+        echo Html::input( $options['name'] , $options );
+   }
+
+
+   function showInputList($options) {
+	
+	if (substr($this->fields['field_value'],0,2)!='_O') {
+		$data=explode(':',$this->fields['field_value']);
+		$selected="";
+	        echo "<select name='{$options['name']}'>";
+	        echo " <option value=''>----</option>";
+        	foreach($data as $idx => $val) {
+                	if (isset($options['value']))
+                        ($options['value']==$val) ? $selected="selected":$selected="";
+                	echo "<option $selected value='$val'>$val</option>";    
+       		 }
+        	echo "</select>";
+
+        } else {
+	 	list($data_type,$data_itemtype)=explode(':',$this->fields['field_value']);
+		$dropdown=getItemForItemType($data_itemtype);
+   	        if ($dropdown instanceof PluginNagiosObject) { 
+                    $options['condition']="type='".$dropdown::$nagios_type."' and is_model=1";
+		}
+		if (isset($options['entity']))
+                        $options['entity']=PluginNagiosObject::getRecursiveEntities($options['entity']);
+                $dropdown->dropdown($options) ; 		
+		
+        }
+	
+	
+   }
+
+   function showInputListOrdr($options) {
+	list($data_type,$data_itemtype)=explode(':',$this->fields['field_value']);
+
+	$dropdown=getItemForItemType($data_itemtype);
+	if ($dropdown instanceof PluginNagiosObject) {
+            $options['condition']="type='".$dropdown::$nagios_type."' AND is_model=1";
+  	    //$options['comments']=false; 
+	    $options['entity_sons']=false;
+            if ($options['entity']) 
+	      $options['entity']=PluginNagiosObject::getRecursiveEntities($options['entity']);
+	}	
+
+	if ($dropdown instanceof User) {
+	  $options['all']='0';
+	  $options['right']='all';
+	} 
+
+	$used=array();
+	$aused=array();
+	if (isset($options['value'])) 
+           if ($options['value']) {
+	   $aused=explode(":",$options['value']);	
+	   $used=$dropdown->find(' id in ('.str_replace(':',',',$options['value']).')');
+           unset($options['value']);    
+	}
+
+	
+       	
+	$suffix='field_'.$this->fields['id'];
+
+	echo "<div id='div_$suffix' style='border:none;padding-left:-20px;'>";
+	echo "<script>var $suffix=$(document).listordr('{$this->fields['id']}');</script>";
+	unset($options['name']);
+         
+	$dropdown->dropdown($options) ;
+	echo "<input type='button' class='submit' value='"._('Add')."' onclick=\"$suffix.add();\" />";
+	
+	/* avaiable object */
+	
+	echo "<table id='tbl_$suffix'>";
+        while (list($idx,$id)=each($aused)) {
+		echo "<tr id='tr_{$suffix}_{$id}'>";
+		echo "<td><div class='move-del' onclick=\"$suffix.remove('{$id}');\" /></td>";	
+		echo "<td><input type='hidden' name='{$suffix}[]' value='{$id}'/>{$used[$id]['name']}</td>";
+                echo "<td><div class='move-up'  onclick=\"$suffix.up('{$id}');\" /></td>";
+                echo "<td><div class='move-down'  onclick=\"$suffix.down('{$id}');\" /></td>";
+		echo "</tr>";
+	}	
+	echo "</table>";
+
+	echo "</div>";
+   }
+
+   function showInputChoice($options) {
+        if (!isset($options['value'])) 
+	  $options['value']=$this->fields['field_value'];
+	Dropdown::showYesNo($options['name'], $options['value'] , -1, $options);
+
+   }
+
+   function showForm($ID, $options = array() ) {
+
+       $this->initForm($ID, $options);
+       $this->showFormHeader($options);
+  
+      echo "<tr class='tab_bg_1'>";
+      echo " <td>" . __('Name') ."*</td>";
+      echo " <td>";
+      echo Html::hidden("id"  ,array('value'=>$this->fields['id']));
+      echo Html::input("name",array('value'=>$this->fields['name']));
+      echo " </td>";
+
+	
+      echo " <td>".__('Libellé')."</td>";
+      echo " <td>";
+      echo Html::input("display_name"  ,array('value'=>$this->fields['display_name']));
+      echo " </td>";
+      echo "</tr>";
+
+      echo "<tr>";
+      echo " <td>".__('Nagios Type')."*</td>";
+      echo " <td>"; 
+      echo Html::input("object_type",array('value'=>$this->fields['object_type']));
+      echo " </td>";
+      echo "</tr>";
+
+      echo "<tr>";
+      echo " <td>".__('Field Type')."*</td>";
+      echo " <td>";
+      echo Html::input("field_type",array('value'=>$this->fields['field_type']));
+      echo " </td>";
+      echo "</tr>";
+  
+      echo "<tr>";
+      echo " <td>".__('Valeur')."</td>";
+      echo " <td>";
+      echo Html::input("field_value",array('value'=>$this->fields['field_value']));
+      echo " </td>";
+      echo "</tr>";
+
+      echo "<tr>";
+      echo " <td>".__('Flag')."</td>";
+      echo " <td>";
+      echo Html::input("field_flag",array('value'=>$this->fields['field_flag']));
+      echo " </td>";
+      echo "</tr>";
+
+      $this->showFormButtons($options);
+      return true;
+
+
+ 
+
+   }
+
+
+   function getSearchOptions() {
+      $tab = array();
+      $tab['common'] = static::getTypeName();
+      $tab[1]['table']     = $this->getTable();
+      $tab[1]['field']     = 'name';
+      $tab[1]['name']      = __('Name');
+      $tab[1]['datatype']        = 'itemlink';
+      $tab[1]['itemlink_type'] = 'PluginNagiosField';
+
+      $tab[2]['table']     = $this->getTable();
+      $tab[2]['field']     = 'display_name';
+      $tab[2]['name']      = __('Libellé');
+   
+      $tab[3]['table']     = $this->getTable();
+      $tab[3]['field']     = 'object_type';
+      $tab[3]['name']      = __('Nagios Type');
+
+      $tab[4]['table']     = $this->getTable();
+      $tab[4]['field']     = 'field_type';
+      $tab[4]['name']      = __('Type');
+ 
+  
+      $tab[5]['table']     = $this->getTable();
+      $tab[5]['field']     = 'field_value';
+      $tab[5]['name']      = __('Valeur');
+
+      return $tab;
+
+  }
+}

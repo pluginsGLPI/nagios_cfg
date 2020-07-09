@@ -1,0 +1,160 @@
+<?php
+
+include ('../../../inc/includes.php');
+
+//Session::checkRight("nagios", READ);
+
+if (empty($_GET["id"])) {
+   $_GET["id"] = "";
+}
+
+$ht= new PluginNagiosHost();
+$object_link=new PluginNagiosObjectLink();
+
+
+$ht->processForm($_POST);
+
+if (isset($_POST['update']) or isset($_POST['add']))
+	Html::back();
+
+if (isset($_GET['_in_modal'])) {
+   Html::popHeader($ht->getTypeName(1),$_SERVER['PHP_SELF']);
+   if (isset($_GET['with_tab']) && $_GET['with_tab']==1) {
+//     $ht->display(array('id' =>$_GET["id"]));
+     $ht->taborientation="horizontal";
+     $ht->display(array('id' =>$_GET["id"]));
+
+//     $ht->showTabsContent(array('id' =>$_GET["id"]));
+   } else {
+     $ht->showForm($_GET["id"]);
+   }
+   Html::popFooter();
+
+} else if (isset($_POST["addservicetoitem"])) {
+
+   $_POST['is_model']=0;
+   $_POST['type']='ST';
+   $service=new PluginNagiosService;
+   $service->add($_POST);
+   $_POST['items_id']=$service->getID();
+
+   //$object_link->check(-1, CREATE, $_POST);
+   if ($object_link->add($_POST)) {
+      Event::log($_POST["plugin_nagios_objects_id"], "PluginNagiosHost", 4, "setup",
+                 //TRANS: %s is the user login
+                 sprintf(__('%s adds a service to a host'), $_SESSION["glpiname"]));
+   }
+   Html::back();
+} else if (isset($_POST['addroletoitem'])) {
+
+   $object_link->add($_POST);
+   Html::back();
+
+
+
+} else if (isset($_POST['delete_item_services'])) {
+  $st=new PluginNagiosService;
+  foreach ( $_POST['item']['PluginNagiosObjectLink'] as $idx => $val)  {
+	echo "delete service $val";
+        $st->delete(array('id'=>$val),1);
+        Event::log($_POST["plugin_nagios_objects_id"], "PluginNagiosService", 4, "setup",
+                 //TRANS: %s is the user login
+                 sprintf(__('%s delete a service to a host'), $_SESSION["glpiname"]));
+        
+   }
+
+  Html::back();
+
+} else if (isset($_POST['delete_item_roles'])) {
+  $ol=new PluginNagiosObjectLink;
+  foreach ( $_POST['item']['PluginNagiosObjectLink'] as $idx => $val)  {
+        $ol->delete(array('id'=>$idx));
+        Event::log($_POST["plugin_nagios_objects_id"], "PluginNagiosRole", 4, "setup",
+                 //TRANS: %s is the user login
+                 sprintf(__('%s delete a role to a host'), $_SESSION["glpiname"]));
+   }
+  Html::back();
+
+} else if (isset($_POST['computer_import_service'])  ) {
+
+  if (!isset($_POST['item']['PluginNagiosObjectLink']))
+	Html::back();
+  $ht->getFromDB($_POST["plugin_nagios_objects_id"]);
+
+  foreach ( $_POST['item']['PluginNagiosObjectLink'] as $idx => $service_id)  { 
+	$service=new PluginNagiosService;
+	$service->getFromDB($service_id);
+	$data=array();
+	$data['is_model']=0;
+	$data['parent_objects_id']=$service_id;
+        $data['entities_id']=$_POST['entities_id'];
+	$data['name']=$ht->fields['name'];
+	$data['alias']=$service->fields['alias'];
+        $data['type']='ST';
+	$new_service=new PluginNagiosService();
+	$new_service->add($data);
+
+	$object_link=new PluginNagiosObjectLink();
+	$data=array();
+	$data['items_id']=$new_service->fields['id'];
+	$data['plugin_nagios_objects_id']=$ht->getID();
+        $data['itemtype']="PluginNagiosService";
+	$object_link->add($data);
+  }
+
+  Html::back();
+
+
+} else if  (isset($_POST['save_opts'])) {
+  /* save host general information */
+  $ht->update($_POST);
+  Plugin::doHook('item_update',$ht);
+  /* save field */ 
+  foreach($_POST['field_id'] as $idx => $field_id ) {
+    if (!isset($_POST["field_$field_id"]))
+       $_POST["field_$field_id"]='';
+   
+    $field_value=$_POST["field_$field_id"];
+    (is_array($field_value)) ? $input['value']=implode($field_value,':') : $input['value']=$field_value;
+    $input['plugin_nagios_fields_id']=$field_id;
+    $input['plugin_nagios_objects_id']=$_POST['id'];
+    
+    if (isset($_POST['flag_'.$field_id]) && $_POST['flag_'.$field_id]!='')
+      $input['flag']=$_POST['flag_'.$field_id];
+    
+    $pv=new PluginNagiosObjectValue;
+    $pv->getFromObjectIds($_POST['id'],$field_id);
+
+    if (isset($pv->fields['id'])) {
+      $input['id']=$pv->getID();
+    
+      if (!$input['value']) {
+        $pv->delete($input);
+	Plugin::doHook("item_purge",$pv);
+      } else {
+	$pv->update($input);
+	Plugin::doHook("item_update",$pv);
+      }
+    } else {
+      unset($input['id']);
+      if ($input['value']) {
+      	$pv->add($input);
+	Plugin::doHook("item_add",$pv);
+      }
+    }
+   }
+
+   
+  Html::back();  
+
+} else { 
+
+ Html::header($ht::getTypeName(), $_SERVER['PHP_SELF'], "plugins", "PluginNagiosHost" );
+
+ $ht->display(array('id' =>$_GET["id"]));
+
+ Html::footer();
+}
+
+
+?>
