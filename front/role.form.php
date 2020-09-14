@@ -49,6 +49,155 @@ if (isset($_POST['update']) or isset($_POST['save_opts']) ) {
 } else if (isset($_POST['add'])) {
 
   Html::redirect($_SERVER['HTTP_REFERER']."?id=".$roleItem->getID());
+
+} else if (isset($_POST["clone_item"])) {
+
+  if (!isset($_POST['item']['PluginNagiosObjectLink']))
+    Html::back();
+
+    $roleItem->getFromDB($_POST["plugin_nagios_objects_id"]);
+
+  foreach ( $_POST['item']['PluginNagiosObjectLink'] as $idx => $service_id)  {
+
+      $service=new PluginNagiosService;
+      $service->getFromDB($service_id);
+
+    $cloned_service=PluginNagiosService::cloneItem($service_id,"_clone", "","");
+    if ($cloned_service && $cloned_service->fields['id'] ) {
+
+      $cloned_service->fields['alias'] = $cloned_service->fields['alias']."_clone";
+      $cloned_service->fields['name'] = $service->fields['name'];
+      $cloned_service->fields['is_disabled'] = 0;
+      $cloned_service->update($cloned_service->fields);
+
+       //create Link
+      $tmpo=new PluginNagiosObjectLink();
+      $dat['plugin_nagios_objects_id']=$_POST['plugin_nagios_objects_id'];
+      $dat['items_id']=$cloned_service->getID();
+      $dat['itemtype']='PluginNagiosService';
+      $tmpo->add($dat);
+
+    }
+  }
+
+  Html::back();
+
+} else if (isset($_POST["disable_item"])) {
+
+
+ if (!isset($_POST['item']['PluginNagiosObjectLink']))
+    Html::back();
+
+    $RoleItem->getFromDB($_POST["plugin_nagios_objects_id"]);
+
+  foreach ( $_POST['item']['PluginNagiosObjectLink'] as $idx => $service_id)  {
+
+    if(Session::haveRight("plugin_nagios_admin",1)){
+      $service=new PluginNagiosService;
+        $service->getFromDB($service_id);
+        $service->fields['is_disabled']=1;
+        $service->update($service->fields);
+      }else{
+      $Mainservices  = PluginNagiosObjectLink::getServicesForObject($_POST["plugin_nagios_objects_id"]);
+
+      $found = false;
+      foreach ($Mainservices as $key => $value) {
+        if($service_id == $value['id']){
+          $found = true;
+          break;
+        }
+      }
+
+      if($found){
+        $service=new PluginNagiosService;
+        $service->getFromDB($service_id);
+        $service->fields['is_disabled']=1;
+        $service->update($service->fields);
+      }else{
+        //clone and disable service 
+         $cloned_service=PluginNagiosService::cloneItem($service_id,"_clone", "","");
+        if ($cloned_service && $cloned_service->fields['id'] ) {
+
+          $cloned_service->fields['alias'] = $cloned_service->fields['alias']."_clone";
+          $cloned_service->fields['name'] = $service->fields['name'];
+          $cloned_service->fields['is_disabled'] = 1;
+          $cloned_service->update($cloned_service->fields);
+
+          //create Link  
+         $tmpo=new PluginNagiosObjectLink();
+          $dat['plugin_nagios_objects_id']=$_POST['plugin_nagios_objects_id'];
+          $dat['items_id']=$cloned_service->getID();
+          $dat['itemtype']='PluginNagiosService';
+          $tmpo->add($dat);
+
+        }
+
+      }
+      }
+
+
+    }
+
+    Html::back();
+
+}
+ else if (isset($_POST["enable_item"])) {
+
+
+ if (!isset($_POST['item']['PluginNagiosObjectLink']))
+    Html::back();
+
+    $RoleItem->getFromDB($_POST["plugin_nagios_objects_id"]);
+
+  foreach ( $_POST['item']['PluginNagiosObjectLink'] as $idx => $service_id)  {
+
+          if(Session::haveRight("plugin_nagios_admin",1)){
+      $service=new PluginNagiosService;
+        $service->getFromDB($service_id);
+        $service->fields['is_disabled']=0;
+        $service->update($service->fields);
+      }else{
+      $Mainservices  = PluginNagiosObjectLink::getServicesForObject($_POST["plugin_nagios_objects_id"]);
+     $Mainservices  = PluginNagiosObjectLink::getServicesForObject($_POST["plugin_nagios_objects_id"]);
+
+      $found = false;
+      foreach ($Mainservices as $key => $value) {
+        if($service_id == $value['id']){
+          $found = true;
+          break;
+        }
+      }
+
+      if($found){
+        $service=new PluginNagiosService;
+        $service->getFromDB($service_id);
+        $service->fields['is_disabled']=0;
+        $service->update($service->fields);
+      }else{
+        //clone and disable service 
+       $cloned_service=PluginNagiosService::cloneItem($service_id,"_clone", "","");
+        if ($cloned_service && $cloned_service->fields['id'] ) {
+
+          $cloned_service->fields['alias'] = $cloned_service->fields['alias']."_clone";
+          $cloned_service->fields['name'] = $service->fields['name'];
+          $cloned_service->fields['is_disabled'] = 1;
+          $cloned_service->update($cloned_service->fields);
+
+           //create Link  
+           $tmpo=new PluginNagiosObjectLink();
+          $dat['plugin_nagios_objects_id']=$_POST['plugin_nagios_objects_id'];
+          $dat['items_id']=$cloned_service->getID();
+          $dat['itemtype']='PluginNagiosService';
+          $tmpo->add($dat);
+
+        }
+
+      }
+      }
+    }
+
+    Html::back();
+
   
 } else if (isset($_POST["addservicetoitem"])) {
 
